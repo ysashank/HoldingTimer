@@ -1,10 +1,3 @@
-//
-//  TimerSession.swift
-//  HoldTimer
-//
-//  Created by sashank.yalamanchili on 19.02.26.
-//
-
 import Foundation
 import Observation
 
@@ -14,7 +7,7 @@ class TimerSession {
     var config = TimerConfiguration()
     var isRunning = false
     var formattedTimer: String { String(format: "%02d:%02d", currentSeconds / 60, currentSeconds % 60) }
-    var currentLabel: String { phase.label(sideState: sideState, repeatSide: config.repeatSide) }
+    var currentLabel: String { phase.label(sideState: sideState, repeatSide: run.repeatSide) }
     var isPrepPhase: Bool { phase == .prep }
     var isRestPhase: Bool { phase == .rest }
 
@@ -35,90 +28,101 @@ class TimerSession {
     private var phase: Phase = .prep
     private var timer: Timer?
     private var currentSeconds = 0
+    private var run = TimerConfiguration()
     private var currentSet = 1
     private var sideState: SideState = .left
-    private var backgroundObserverToken: (any NSObjectProtocol)?
+    private let cues: Cues
+    private var tokens: [any NSObjectProtocol] = []
+    private var pending: (() -> Void)?
+
+    init(cues: Cues = SessionCues()) { self.cues = cues }
 
     func startRoutine() {
         ScreenManager.disableScreenSleep()
+        cues.prepare()
         isRunning = true
+        run = config
         currentSet = 1
         sideState = .left
         startPrep()
-        backgroundObserverToken = ScreenManager.observeBackgroundEntry { [weak self] in
-            self?.stopRoutine()
-        }
+        tokens = [
+            ScreenManager.observeBackgroundEntry { [weak self] in self?.suspend() },
+            ScreenManager.observeForegroundEntry { [weak self] in self?.restore() },
+        ]
     }
 
     func stopRoutine() {
         ScreenManager.enableScreenSleep()
+        cues.release()
         timer?.invalidate()
         timer = nil
+        pending = nil
         isRunning = false
         currentSeconds = 0
-        if let token = backgroundObserverToken {
-            ScreenManager.removeBackgroundObserver(token)
-            backgroundObserverToken = nil
-        }
+        tokens.forEach(ScreenManager.removeObserver)
+        tokens = []
+    }
+
+    private func suspend() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    private func restore() {
+        guard isRunning, pending != nil else { return }
+        schedule()
     }
 
     private func startPrep() {
         phase = .prep
-        runTimer(for: 5) { [weak self] in self?.startHold() }
+        runTimer(for: TimerConfiguration.prepSeconds) { [weak self] in self?.startHold() }
     }
 
     private func startHold() {
         phase = .hold
-        runTimer(for: config.holdTime) { [weak self] in self?.handlePostHold() }
+        runTimer(for: run.holdTime) { [weak self] in self?.handlePostHold() }
     }
 
     private func handlePostHold() {
-        if config.repeatSide {
-            if sideState == .left {
-                sideState = .right
-                startRest()
-            } else {
-                sideState = .left
-                currentSet += 1
-                if currentSet > config.numberOfSets { stopRoutine() } else { startRest() }
-            }
-        } else {
-            currentSet += 1
-            if currentSet > config.numberOfSets { stopRoutine() } else { startRest() }
+        if run.repeatSide && sideState == .left {
+            sideState = .right
+            startRest()
+            return
         }
+        sideState = .left
+        currentSet += 1
+        if currentSet > run.numberOfSets { stopRoutine() } else { startRest() }
     }
 
     private func startRest() {
         phase = .rest
-        runTimer(for: config.restTime) { [weak self] in self?.startHold() }
+        runTimer(for: run.restTime) { [weak self] in self?.startHold() }
     }
 
     private func runTimer(for seconds: Int, completion: @escaping () -> Void) {
+        currentSeconds = max(1, seconds)
+        pending = completion
+        if phase == .hold { cues.tick(.start) }
+        schedule()
+    }
+
+    private func schedule() {
         timer?.invalidate()
-        currentSeconds = seconds
-        if phase == .hold { playStart() }
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] t in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.currentSeconds -= 1
                 if self.currentSeconds == 0 {
-                    if self.phase == .hold { self.playEnd() }
+                    if self.phase == .hold { self.cues.tick(.end) }
                     t.invalidate()
-                    completion()
-                } else if self.currentSeconds <= 5 {
-                    SoundManager.shared.play(.warn)
+                    self.timer = nil
+                    let next = self.pending
+                    self.pending = nil
+                    next?()
+                } else if self.currentSeconds <= TimerConfiguration.warnSeconds {
+                    self.cues.tick(.warn)
                 }
             }
         }
-    }
-
-    private func playStart() {
-        SoundManager.shared.play(.start)
-        SoundManager.shared.vibrate()
-    }
-
-    private func playEnd() {
-        SoundManager.shared.play(.end)
-        SoundManager.shared.vibrateDouble()
     }
 }

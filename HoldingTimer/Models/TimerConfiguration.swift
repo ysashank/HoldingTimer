@@ -1,13 +1,11 @@
-//
-//  TimerConfiguration.swift
-//  HoldTimer
-//
-//  Created by sashank.yalamanchili on 19.02.26.
-//
-
 import Foundation
 
 struct TimerConfiguration {
+    // Terminal countdown. Breathwork cues every 5th remaining second instead; the alarm is the
+    // one deliberate iOS departure, and Solemate uses the same window.
+    static let warnSeconds = 5
+    static let prepSeconds = 5
+
     var holdTime: Int = 15
     var numberOfSets: Int = 1
     var repeatSide: Bool = false
@@ -16,7 +14,7 @@ struct TimerConfiguration {
     var totalDuration: Int {
         let totalHolds = repeatSide ? numberOfSets * 2 : numberOfSets
         let totalRests = totalHolds - 1
-        return 5 + (totalHolds * holdTime) + (totalRests * restTime)
+        return Self.prepSeconds + (totalHolds * holdTime) + (totalRests * restTime)
     }
 
     var formattedTotalDuration: String {

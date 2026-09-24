@@ -1,18 +1,10 @@
-//
-//  TimePickerView.swift
-//  HoldTimer
-//
-//  Created by sashank.yalamanchili on 29.04.25.
-//  Updated by sashank.yalamanchili on 19.02.26.
-//
-
 import SwiftUI
 
 struct TimePickerView: View {
     @Binding var totalSeconds: Int
 
-    @State private var minutes: Int = 0
-    @State private var seconds: Int = 15
+    @State private var minutes = 0
+    @State private var seconds = 0
 
     var body: some View {
         HStack {
@@ -26,7 +18,7 @@ struct TimePickerView: View {
             .pickerStyle(.wheel)
             .frame(width: 100)
             .clipped()
-            
+
             Text("min")
                 .foregroundColor(.foregroundSecondary)
 
@@ -40,7 +32,7 @@ struct TimePickerView: View {
             .pickerStyle(.wheel)
             .frame(width: 100)
             .clipped()
-            
+
             Text("sec")
                 .foregroundColor(.foregroundSecondary)
         }

@@ -1,11 +1,3 @@
-//
-//  ActiveTimerView.swift
-//  HoldTimer
-//
-//  Created by sashank.yalamanchili on 19.02.26.
-//  Updated by sashank.yalamanchili on 21.02.26.
-//
-
 import SwiftUI
 
 struct ActiveTimerView: View {
@@ -33,16 +25,15 @@ struct ActiveTimerView: View {
                     session.stopRoutine()
                 } label: {
                     Text("Stop")
-                        .font(.title3)
-                        .foregroundColor(.foregroundTertiary)
-                        .padding(.horizontal, 80)
-                        .padding(.vertical, 32)
-                        .background(
-                            Capsule()
-                                .fill(Color.buttonSurface.opacity(0.16))
-                        )
+                        .foregroundStyle(Color.destructive)
+                        .frame(width: 84, height: 84)
+                        .overlay {
+                            Circle()
+                                .stroke(Color.destructive, lineWidth: 1)
+                        }
                 }
-                .padding(.bottom, 40)
+                .opacity(0.56)
+                .padding()
             }
             .padding()
         }
@@ -51,6 +42,6 @@ struct ActiveTimerView: View {
     private var timerColor: Color {
         if session.isPrepPhase { .timerPrep }
         else if session.isRestPhase { .timerRest }
-        else { .timerActive }
+        else { .foregroundPrimary }
     }
 }

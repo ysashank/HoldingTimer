@@ -1,11 +1,3 @@
-//
-//  HomeView.swift
-//  HoldTimer
-//
-//  Created by sashank.yalamanchili on 29.04.25.
-//  Updated by sashank.yalamanchili on 19.02.26.
-//
-
 import SwiftUI
 
 struct HomeView: View {
@@ -64,18 +56,15 @@ struct HomeView: View {
                     Text("Start")
                         .font(.title2)
                         .fontWeight(.semibold)
-                        .foregroundColor(.foregroundPrimary)
+                        .foregroundStyle(Color.foregroundPrimary)
                         .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 80)
-                        .padding(.vertical, 20)
-                        .background(
-                            Capsule()
-                                .fill(Color.buttonSurface.opacity(0.40))
-                        )
+                        .padding(.horizontal, 32)
+                        .padding(.vertical, 26)
+                        .background(Color.buttonSurface, in: Capsule())
                 }
                 .padding()
             }
-            .navigationTitle("Hold Timer")
+            .navigationTitle("Holding Timer")
             .navigationBarTitleDisplayMode(.large)
             .background(Color.backgroundPrimary)
             .padding(.horizontal)
