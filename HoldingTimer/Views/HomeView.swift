@@ -62,15 +62,25 @@ struct HomeView: View {
                         .padding(.vertical, 26)
                         .background(Color.buttonSurface, in: Capsule())
                 }
+                .accessibilityLabel("Start routine")
                 .padding()
             }
             .navigationTitle("Holding Timer")
             .navigationBarTitleDisplayMode(.large)
             .background(Color.backgroundPrimary)
             .padding(.horizontal)
-            .fullScreenCover(isPresented: $session.isRunning) {
+            .fullScreenCover(isPresented: .constant(session.isRunning)) {
                 ActiveTimerView(session: session)
+            }
+            .fullScreenCover(item: Binding(get: { session.completion.map(Completed.init) }, set: { _ in })) { done in
+                CompletionView(completion: done.value) { session.dismissCompletion() }
             }
         }
     }
+}
+
+private struct Completed: Identifiable {
+    let value: SessionCompletion
+    var id: Date { value.completedAt }
+    init(_ value: SessionCompletion) { self.value = value }
 }

@@ -1,6 +1,8 @@
 import AVFoundation
 import OSLog
 
+enum Tick { case start, warn, end }
+
 enum SessionAudioService {
     private static let logger = Logger(subsystem: "com.sy.HoldingTimer", category: "SessionAudioService")
     private static var audioEngine: AVAudioEngine?

@@ -11,5 +11,6 @@ extension Color {
 
     static let timerRest = Color(UIColor.systemYellow)
     static let timerPrep = Color(UIColor.systemRed)
+    static let success = Color(UIColor.systemGreen)
     static let destructive = Color(UIColor.systemRed)
 }

@@ -1,6 +1,6 @@
 import Foundation
 
-struct TimerConfiguration {
+nonisolated struct TimerConfiguration {
     // Terminal countdown. Breathwork cues every 5th remaining second instead; the alarm is the
     // one deliberate iOS departure, and Solemate uses the same window.
     static let warnSeconds = 5
@@ -22,4 +22,10 @@ struct TimerConfiguration {
         let seconds = totalDuration % 60
         return String(format: "%02d:%02d", minutes, seconds)
     }
+}
+
+nonisolated struct SessionCompletion {
+    let duration: TimeInterval
+    let completedAt: Date
+    let configuration: TimerConfiguration
 }

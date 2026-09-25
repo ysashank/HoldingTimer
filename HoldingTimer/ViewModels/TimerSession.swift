@@ -1,13 +1,22 @@
 import Foundation
 import Observation
+import OSLog
 
-@MainActor
 @Observable
-class TimerSession {
+final class TimerSession {
     var config = TimerConfiguration()
-    var isRunning = false
+    private(set) var isRunning = false
+    private(set) var completion: SessionCompletion?
+    private(set) var feedback = Feedback(kind: .warn, id: 0)
+
+    struct Feedback: Equatable {
+        let kind: Tick
+        let id: Int
+    }
+
     var formattedTimer: String { String(format: "%02d:%02d", currentSeconds / 60, currentSeconds % 60) }
     var currentLabel: String { phase.label(sideState: sideState, repeatSide: run.repeatSide) }
+    var setLabel: String { "Set \(min(currentSet, run.numberOfSets)) of \(run.numberOfSets)" }
     var isPrepPhase: Bool { phase == .prep }
     var isRestPhase: Bool { phase == .rest }
 
@@ -25,52 +34,67 @@ class TimerSession {
 
     private enum SideState { case left, right }
 
+    private let logger = Logger(subsystem: "com.sy.HoldingTimer", category: "Session")
     private var phase: Phase = .prep
-    private var timer: Timer?
+    private var task: Task<Void, Never>?
     private var currentSeconds = 0
     private var run = TimerConfiguration()
     private var currentSet = 1
     private var sideState: SideState = .left
-    private let cues: any Cues
-    private var tokens: [any NSObjectProtocol] = []
+    private var startedAt: Date?
     private var pending: (() -> Void)?
-
-    init(cues: any Cues = SessionCues()) { self.cues = cues }
 
     func startRoutine() {
         ScreenManager.disableScreenSleep()
-        cues.prepare()
+        Health.ensureAuthorizationIfNeeded()
+        SessionAudioService.prepare()
         isRunning = true
+        completion = nil
         run = config
         currentSet = 1
         sideState = .left
+        startedAt = Date()
         startPrep()
-        tokens = [
-            ScreenManager.observeBackgroundEntry { [weak self] in self?.suspend() },
-            ScreenManager.observeForegroundEntry { [weak self] in self?.restore() },
-        ]
     }
 
     func stopRoutine() {
+        logger.info("Routine aborted at set \(self.currentSet) of \(self.run.numberOfSets)")
+        teardown()
+    }
+
+    func dismissCompletion() { completion = nil }
+
+    func suspend() {
+        task?.cancel()
+        task = nil
+    }
+
+    func restore() {
+        guard isRunning, pending != nil else { return }
+        schedule()
+    }
+
+    private func completeRoutine() {
+        let start = startedAt ?? Date()
+        let end = Date()
+        completion = SessionCompletion(
+            duration: end.timeIntervalSince(start),
+            completedAt: end,
+            configuration: run
+        )
+        logger.info("Routine complete: \(self.run.numberOfSets) sets in \(end.timeIntervalSince(start), format: .fixed(precision: 0))s")
+        Health.storeCompletedWorkout(start: start, end: end, configuration: run)
+        teardown()
+    }
+
+    private func teardown() {
         ScreenManager.enableScreenSleep()
-        cues.release()
-        timer?.invalidate()
-        timer = nil
+        SessionAudioService.release()
+        task?.cancel()
+        task = nil
         pending = nil
         isRunning = false
         currentSeconds = 0
-        tokens.forEach(ScreenManager.removeObserver)
-        tokens = []
-    }
-
-    private func suspend() {
-        timer?.invalidate()
-        timer = nil
-    }
-
-    private func restore() {
-        guard isRunning, pending != nil else { return }
-        schedule()
     }
 
     private func startPrep() {
@@ -91,7 +115,7 @@ class TimerSession {
         }
         sideState = .left
         currentSet += 1
-        if currentSet > run.numberOfSets { stopRoutine() } else { startRest() }
+        if currentSet > run.numberOfSets { completeRoutine() } else { startRest() }
     }
 
     private func startRest() {
@@ -102,29 +126,39 @@ class TimerSession {
     private func runTimer(for seconds: Int, completion: @escaping () -> Void) {
         currentSeconds = seconds
         pending = completion
-        if phase == .hold { cues.tick(.start) }
+        if phase == .hold { cue(.start) }
         schedule()
     }
 
     private func schedule() {
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.tick() }
+        task?.cancel()
+        task = Task { [weak self] in
+            var next = ContinuousClock.now
+            while !Task.isCancelled {
+                next += .seconds(1)
+                try? await Task.sleep(until: next, clock: .continuous)
+                guard !Task.isCancelled else { return }
+                self?.tick()
+            }
         }
     }
 
     private func tick() {
         currentSeconds -= 1
         guard currentSeconds == 0 else {
-            if currentSeconds <= TimerConfiguration.warnSeconds { cues.tick(.warn) }
+            if currentSeconds <= TimerConfiguration.warnSeconds { cue(.warn) }
             return
         }
-        if phase == .hold { cues.tick(.end) }
-        timer?.invalidate()
-        timer = nil
+        if phase == .hold { cue(.end) }
+        task?.cancel()
+        task = nil
         let next = pending
         pending = nil
         next?()
     }
 
+    private func cue(_ kind: Tick) {
+        SessionAudioService.play(kind)
+        if kind != .warn { feedback = Feedback(kind: kind, id: feedback.id + 1) }
+    }
 }
