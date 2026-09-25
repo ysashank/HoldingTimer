@@ -14,9 +14,9 @@ struct SessionCues: Cues {
 
     func tick(_ kind: Tick) {
         switch kind {
-        case .start: SoundManager.shared.play(.start); SoundManager.shared.vibrate()
+        case .start: SoundManager.shared.play(.start); Haptics.tap()
         case .warn: SoundManager.shared.play(.warn)
-        case .end: SoundManager.shared.play(.end); SoundManager.shared.vibrateDouble()
+        case .end: SoundManager.shared.play(.end); Haptics.doubleTap()
         }
     }
 

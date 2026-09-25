@@ -100,7 +100,7 @@ class TimerSession {
     }
 
     private func runTimer(for seconds: Int, completion: @escaping () -> Void) {
-        currentSeconds = max(1, seconds)
+        currentSeconds = seconds
         pending = completion
         if phase == .hold { cues.tick(.start) }
         schedule()
@@ -108,21 +108,23 @@ class TimerSession {
 
     private func schedule() {
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] t in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.currentSeconds -= 1
-                if self.currentSeconds == 0 {
-                    if self.phase == .hold { self.cues.tick(.end) }
-                    t.invalidate()
-                    self.timer = nil
-                    let next = self.pending
-                    self.pending = nil
-                    next?()
-                } else if self.currentSeconds <= TimerConfiguration.warnSeconds {
-                    self.cues.tick(.warn)
-                }
-            }
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tick() }
         }
     }
+
+    private func tick() {
+        currentSeconds -= 1
+        guard currentSeconds == 0 else {
+            if currentSeconds <= TimerConfiguration.warnSeconds { cues.tick(.warn) }
+            return
+        }
+        if phase == .hold { cues.tick(.end) }
+        timer?.invalidate()
+        timer = nil
+        let next = pending
+        pending = nil
+        next?()
+    }
+
 }

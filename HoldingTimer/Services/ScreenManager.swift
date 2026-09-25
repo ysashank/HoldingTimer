@@ -1,21 +1,15 @@
 import UIKit
 
+@MainActor
 enum ScreenManager {
-    static func disableScreenSleep() {
-        UIApplication.shared.isIdleTimerDisabled = true
-    }
+    static func disableScreenSleep() { UIApplication.shared.isIdleTimerDisabled = true }
+    static func enableScreenSleep() { UIApplication.shared.isIdleTimerDisabled = false }
 
-    static func enableScreenSleep() {
-        UIApplication.shared.isIdleTimerDisabled = false
-    }
-
-    @discardableResult
-    static func observeBackgroundEntry(handler: @escaping () -> Void) -> any NSObjectProtocol {
+    static func observeBackgroundEntry(handler: @escaping @MainActor () -> Void) -> any NSObjectProtocol {
         observe(UIApplication.didEnterBackgroundNotification, handler)
     }
 
-    @discardableResult
-    static func observeForegroundEntry(handler: @escaping () -> Void) -> any NSObjectProtocol {
+    static func observeForegroundEntry(handler: @escaping @MainActor () -> Void) -> any NSObjectProtocol {
         observe(UIApplication.willEnterForegroundNotification, handler)
     }
 
@@ -23,7 +17,9 @@ enum ScreenManager {
         NotificationCenter.default.removeObserver(token)
     }
 
-    private static func observe(_ name: Notification.Name, _ handler: @escaping () -> Void) -> any NSObjectProtocol {
-        NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in handler() }
+    private static func observe(_ name: Notification.Name, _ handler: @escaping @MainActor () -> Void) -> any NSObjectProtocol {
+        NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { handler() }
+        }
     }
 }

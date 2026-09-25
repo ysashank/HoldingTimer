@@ -1,19 +1,15 @@
 import AVFoundation
-import UIKit
 
-final class SoundManager {
+final class SoundManager: @unchecked Sendable {
     static let shared = SoundManager()
     private var players: [SoundType: AVAudioPlayer] = [:]
-    private let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
-    private let session = DispatchQueue(label: "audio.session")
+    private let queue = DispatchQueue(label: "audio.players")
 
     private init() {}
 
     func prepare() {
-        session.async {
-            let s = AVAudioSession.sharedInstance()
-            try? s.setCategory(.playback, mode: .default, options: [.duckOthers])
-            try? s.setActive(true)
+        AudioSession.activatePlayback()
+        queue.async {
             guard self.players.isEmpty else { return }
             for type in SoundType.allCases {
                 guard let url = Bundle.main.url(forResource: type.rawValue, withExtension: "wav"),
@@ -25,7 +21,7 @@ final class SoundManager {
     }
 
     func play(_ type: SoundType) {
-        session.async {
+        queue.async {
             guard let p = self.players[type] else { return }
             p.currentTime = 0
             p.play()
@@ -33,21 +29,9 @@ final class SoundManager {
     }
 
     func release() {
-        session.async { self.players.values.forEach { $0.stop() } }
-        session.async { try? AVAudioSession.sharedInstance().setActive(false) }
-    }
-
-    @MainActor func vibrate() {
-        impactFeedback.prepare()
-        impactFeedback.impactOccurred()
-    }
-
-    @MainActor func vibrateDouble() {
-        impactFeedback.prepare()
-        impactFeedback.impactOccurred()
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(0.15))
-            impactFeedback.impactOccurred()
+        queue.async {
+            let tail = self.players.values.filter(\.isPlaying).map { $0.duration - $0.currentTime }.max() ?? 0
+            self.queue.asyncAfter(deadline: .now() + tail) { AudioSession.deactivate() }
         }
     }
 
