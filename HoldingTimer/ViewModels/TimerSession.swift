@@ -31,11 +31,11 @@ class TimerSession {
     private var run = TimerConfiguration()
     private var currentSet = 1
     private var sideState: SideState = .left
-    private let cues: Cues
+    private let cues: any Cues
     private var tokens: [any NSObjectProtocol] = []
     private var pending: (() -> Void)?
 
-    init(cues: Cues = SessionCues()) { self.cues = cues }
+    init(cues: any Cues = SessionCues()) { self.cues = cues }
 
     func startRoutine() {
         ScreenManager.disableScreenSleep()

@@ -1,6 +1,5 @@
 enum Tick { case start, warn, end }
 
-@MainActor
 protocol Cues {
     func prepare()
     func tick(_ kind: Tick)
@@ -8,17 +7,16 @@ protocol Cues {
 }
 
 struct SessionCues: Cues {
-    nonisolated init() {}
-
-    func prepare() { SoundManager.shared.prepare() }
+    func prepare() { SessionAudioService.prepare() }
 
     func tick(_ kind: Tick) {
+        SessionAudioService.play(kind)
         switch kind {
-        case .start: SoundManager.shared.play(.start); Haptics.tap()
-        case .warn: SoundManager.shared.play(.warn)
-        case .end: SoundManager.shared.play(.end); Haptics.doubleTap()
+        case .start: Haptics.tap()
+        case .end: Haptics.doubleTap()
+        case .warn: break
         }
     }
 
-    func release() { SoundManager.shared.release() }
+    func release() { SessionAudioService.release() }
 }
